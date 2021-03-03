@@ -47,7 +47,7 @@ exports.getAllPullRequestsOfRepository = async (repoOwner, repoName) => {
       response = await octokit.request('GET /repos/{owner}/{repo}/pulls', {
         owner: repoOwner,
         repo: repoName,
-        state: 'all',
+        state: 'closed',
         per_page: 50,
         page: i,
       });
@@ -144,4 +144,6 @@ exports.getFilteredPRData = (listOfAllPullRequests) =>
     status: pr.state,
     labels: pr.labels,
     htmlUrl: pr._links.html.href,
+    userId: pr.user.login,
+    isAdmin: pr.user.site_admin
   }));

@@ -5,10 +5,11 @@ const jsonexport = require('jsonexport');
 const CONSTANTS = require('./constants');
 const {
   delay,
+  getFilteredPRData,
   getScoreFromLabels,
   getAllIssuesOfRepository,
-  getAllPullRequestsOfRepository,
   getIssuesWithCrosswocLabel,
+  getAllPullRequestsOfRepository,
 } = require('./helper');
 
 const ultimateContributors = {};
@@ -31,26 +32,36 @@ const app = async (repoOwner, repoName) => {
   const listOfCrosswocIssues = getIssuesWithCrosswocLabel(listOfAllIssues);
   const filteredPullRequestData = getFilteredPRData(listOfAllPullRequests);
   
-  console.log(
-    listOfAllIssues.length,
-    '\n \n \n \n',
-    listOfCrosswocIssues.length,
-    '\n \n \n \n',
-    filteredPullRequestData.length
-  );
+  // console.log(
+  //   listOfAllIssues.length,
+  //   '\n \n \n \n',
+  //   listOfCrosswocIssues.length,
+  //   '\n \n \n \n',
+  //   filteredPullRequestData.length
+  // );
 
-  // todo: for all PRs
-  const { data, response } = await scrapeIt(
-    'https://github.com/proRamLOGO/quantum-algorithms/pull/28',
-    {
-      linkedName: '.my-1',
+  filteredPullRequestData.forEach(async pullRequest => {
+    const { data, response } = await scrapeIt(
+      pullRequest.htmlUrl,
+      {
+        linkedIssueName: '.my-1',
+      }
+    );
+
+    // ASSUMPTION: all PRs are linked with an Issue
+    if (response.statusCode === 200 && data.linkedIssueName) {
+      // ASSUMPTION: all issue names are unique
+      const matchingIssues = listOfCrosswocIssues.filter(issue => issue.title === data.linkedIssueName);
+      const currentIssue = matchingIssues && matchingIssues[0];
+
+      if (currentIssue && !pullRequest.isAdmin) {
+        const score = getScoreFromLabels(currentIssue.labels);
+        const userGitID = pullRequest.userId;
+        addInMap(userGitID, score);
+        console.log(userGitID, score);
+      }
     }
-  );
-  // console.log(`Status Code: ${response.statusCode}`);
-  console.log(data.linkedName);
-
-  if (data.linkedName) {
-  }
+  })
 };
 
 const start = async () => {
@@ -59,52 +70,19 @@ const start = async () => {
     await app(item.ownerName, item.repoName);
   });
 
-  // setTimeout(() => {
-  //   console.log(
-  //     '\n\n\n\n\n\n\n\n\n ultimateContributors: \n',
-  //     ultimateContributors
-  //   );
+  setTimeout(() => {
+    console.log(
+      '\n\n\n\n\n\n\n\n\n ultimateContributors: \n',
+      ultimateContributors
+    );
 
-  //   // jsonexport(ultimateContributors, function (err, csv) {
-  //   //   if (err) return console.error(err);
-  //   //   console.log(csv);
+    jsonexport(ultimateContributors, function (err, csv) {
+      if (err) return console.error(err);
+      console.log(csv);
 
-  //   //   fs.writeFile('./contributors.csv', csv, (err) => console.error(err));
-  //   // });
-  // }, 1000 * 30 * 1);
+      fs.writeFile('./contributors.csv', csv, (err) => console.error(err));
+    });
+  }, 1000 * 60 * 5);
 };
 
 start();
-
-// filteredLabelsOfIssues.forEach(async (issue) => {
-//   if (issue && issue.pull_request) {
-//     const labelsss = issue.labels;
-//     const score = getScoreFromLabels(issue.labels);
-//     const PRnum = issue.pull_request.url.split('pulls')[1].slice(1);
-
-//     let prResponse;
-//     try {
-//       prResponse = await octokit.request(
-//         'GET /repos/{owner}/{repo}/pulls/{pull_number}',
-//         {
-//           owner: repoOwner,
-//           repo: repoName,
-//           pull_number: PRnum,
-//         }
-//       );
-//     } catch (err) {
-//       console.log(err);
-//     }
-
-//     console.log('\n\npr res: \n\n\n', prResponse)
-//     if (
-//       prResponse &&
-//       prResponse.data.state === 'closed' &&
-//       !prResponse.data.user.site_admin
-//     ) {
-//       const userGitID = prResponse.data.user.login;
-//       addInMap(userGitID, score);
-//       console.log(userGitID, score);
-//     }
-//   }
-// });
