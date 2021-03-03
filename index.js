@@ -5,6 +5,7 @@ const jsonexport = require('jsonexport');
 const CONSTANTS = require('./constants');
 const {
   delay,
+  addInMap,
   getFilteredPRData,
   getScoreFromLabels,
   getAllIssuesOfRepository,
@@ -12,17 +13,9 @@ const {
   getAllPullRequestsOfRepository,
 } = require('./helper');
 
-const ultimateContributors = {};
-const addInMap = (id, score) => {
-  if (ultimateContributors[id]) {
-    ultimateContributors[id] += score;
-  } else {
-    ultimateContributors[id] = score;
-  }
-};
+const allContributors = {};
 
-// for a single repo
-const app = async (repoOwner, repoName) => {
+const calcScoreOfParticipantsInRepo = async (repoOwner, repoName) => {
   const listOfAllIssues = await getAllIssuesOfRepository(repoOwner, repoName);
   const listOfAllPullRequests = await getAllPullRequestsOfRepository(
     repoOwner,
@@ -31,7 +24,7 @@ const app = async (repoOwner, repoName) => {
 
   const listOfCrosswocIssues = getIssuesWithCrosswocLabel(listOfAllIssues);
   const filteredPullRequestData = getFilteredPRData(listOfAllPullRequests);
-  
+
   // console.log(
   //   listOfAllIssues.length,
   //   '\n \n \n \n',
@@ -40,49 +33,52 @@ const app = async (repoOwner, repoName) => {
   //   filteredPullRequestData.length
   // );
 
-  filteredPullRequestData.forEach(async pullRequest => {
-    const { data, response } = await scrapeIt(
-      pullRequest.htmlUrl,
-      {
+  filteredPullRequestData.forEach(async (pullRequest) => {
+    try {
+      const { data, response } = await scrapeIt(pullRequest.htmlUrl, {
         linkedIssueName: '.my-1',
-      }
-    );
+      });
 
-    // ASSUMPTION: all PRs are linked with an Issue
-    if (response.statusCode === 200 && data.linkedIssueName) {
-      // ASSUMPTION: all issue names are unique
-      const matchingIssues = listOfCrosswocIssues.filter(issue => issue.title === data.linkedIssueName);
-      const currentIssue = matchingIssues && matchingIssues[0];
+      // ASSUMPTION: all PRs are linked with an Issue
+      if (response.statusCode === 200 && data.linkedIssueName) {
+        // ASSUMPTION: all issue names are unique
+        const matchingIssues = listOfCrosswocIssues.filter(
+          (issue) => issue.title === data.linkedIssueName
+        );
+        const currentIssue = matchingIssues && matchingIssues[0];
 
-      if (currentIssue && !pullRequest.isAdmin) {
-        const score = getScoreFromLabels(currentIssue.labels);
-        const userGitID = pullRequest.userId;
-        addInMap(userGitID, score);
-        console.log(userGitID, score);
+        if (currentIssue && !pullRequest.isAdmin) {
+          const score = getScoreFromLabels(currentIssue.labels);
+          const userGitID = pullRequest.userId;
+          addInMap(allContributors, userGitID, score);
+          console.log(userGitID, score);
+        }
       }
+    } catch (err) {
+      console.error(err);
     }
-  })
+  });
 };
 
 const start = async () => {
   CONSTANTS.listOfReposAndOwners.forEach(async (item) => {
     await delay(1000);
-    await app(item.ownerName, item.repoName);
+    await calcScoreOfParticipantsInRepo(item.ownerName, item.repoName);
   });
 
   setTimeout(() => {
     console.log(
-      '\n\n\n\n\n\n\n\n\n ultimateContributors: \n',
-      ultimateContributors
+      '\n\n\n\n\n\n\n\n\n allContributors: \n',
+      allContributors
     );
 
-    jsonexport(ultimateContributors, function (err, csv) {
+    jsonexport(allContributors, function (err, csv) {
       if (err) return console.error(err);
       console.log(csv);
 
       fs.writeFile('./contributors.csv', csv, (err) => console.error(err));
     });
-  }, 1000 * 60 * 5);
+  }, 1000 * 60 * 10);
 };
 
 start();

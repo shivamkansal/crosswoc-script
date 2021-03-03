@@ -1,7 +1,8 @@
 const { Octokit } = require('@octokit/core');
 const CONSTANTS = require('./constants');
 const octokit = new Octokit({
-  auth: 'b3b4ece495c418c21e18f3fbdf475be40be0e986',
+  auth: 'a2d642bcae8d47bd1cb23dc2cf954d7809c8da8f',
+  // auth: 'b3b4ece495c418c21e18f3fbdf475be40be0e986',
 });
 
 exports.delay = (time) => new Promise((resolve) => setTimeout(resolve, time));
@@ -52,7 +53,7 @@ exports.getAllPullRequestsOfRepository = async (repoOwner, repoName) => {
         page: i,
       });
     } catch (err) {
-      console.log('Error: ', err);
+      console.log('Error in getAllPullRequestsOfRepository: \n', err);
     }
 
     // prevent unnecessary api call on error
@@ -95,7 +96,7 @@ exports.getAllIssuesOfRepository = async (repoOwner, repoName) => {
         page: i,
       });
     } catch (err) {
-      console.log('Error: ', err);
+      console.log('Error in getAllIssuesOfRepository: \n', err);
     }
 
     // prevent unnecessary api call on error
@@ -145,5 +146,13 @@ exports.getFilteredPRData = (listOfAllPullRequests) =>
     labels: pr.labels,
     htmlUrl: pr._links.html.href,
     userId: pr.user.login,
-    isAdmin: pr.user.site_admin
+    isAdmin: pr.user.site_admin,
   }));
+
+exports.addInMap = (map, id, score) => {
+  if (map[id]) {
+    map[id] += score;
+  } else {
+    map[id] = score;
+  }
+};
